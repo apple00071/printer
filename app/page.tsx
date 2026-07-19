@@ -5,7 +5,7 @@ import Script from "next/script";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 
-type Stage = "upload" | "settings" | "payment" | "printing" | "done";
+type Stage = "upload" | "settings" | "printing" | "done";
 
 function Brand() {
   return <div className="brand"><span className="brand-icon">▤</span><span>ScanPrint</span></div>;
@@ -18,7 +18,7 @@ function StatusPills() {
 function Steps({ stage }: { stage: Stage }) {
   const current = stage === "upload" ? 1 : stage === "settings" ? 2 : 3;
   return <div className="steps">
-    {["Upload", "Choose settings", "Pay & Print"].map((label, i) => <div className={`step ${current >= i + 1 ? "active" : ""}`} key={label}>
+    {["Upload", "Choose settings", "Print"].map((label, i) => <div className={`step ${current >= i + 1 ? "active" : ""}`} key={label}>
       <span className="step-circle">{current > i + 1 ? "✓" : i + 1}</span><b>{label}</b>{i < 2 && <span className="step-line" />}
     </div>)}
   </div>;
@@ -172,8 +172,9 @@ export default function Home() {
   
   function reset() { setStage("upload"); setFile(null); setColor("bw"); setCopies(1); setRange("All pages"); setPdfPages(1); setCustomRange(""); }
 
-  async function pay() {
+  async function printFile() {
     if (!file) return;
+    setStage("printing");
     const jobId = `SP-${Math.floor(1000 + Math.random() * 9000)}`;
     setGeneratedJobId(jobId);
 
@@ -194,7 +195,7 @@ export default function Home() {
       const newJob = {
         id: jobId,
         file: filePath, // Storing the staged storage file path key in DB
-        amount: price,
+        amount: 0, // Free print!
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         color,
         sides,
@@ -211,87 +212,24 @@ export default function Home() {
         body: JSON.stringify(newJob)
       });
 
-      // 3. Initiate Razorpay Checkout Order
-      const payRes = await fetch("/api/pay", {
-        method: "POST",
+      // 3. Directly trigger print job release on backend
+      const response = await fetch("/api/jobs", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, amount: price })
+        body: JSON.stringify({ id: jobId, status: "Paid" })
       });
-      const payData = await payRes.json();
-
-      if (payData.mock) {
-        // Fallback: If Razorpay credentials are not set, proceed to mock UPI payment release delay
-        setStage("printing");
-        setTimeout(async () => {
-          await fetch("/api/jobs", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: jobId, status: "Paid" })
-          });
-          setStage("done");
-        }, 2300);
-      } else if (payData.orderId) {
-        // Open Razorpay Standard Checkout overlay
-        const isLocal = 
-          window.location.hostname === "localhost" || 
-          window.location.hostname === "127.0.0.1" || 
-          window.location.hostname.startsWith("192.168.") || 
-          window.location.hostname.startsWith("10.");
-        const options: any = {
-          key: payData.keyId,
-          amount: payData.amount,
-          currency: payData.currency,
-          name: "ScanPrint Kiosk",
-          description: "Payment to release print job",
-          order_id: payData.orderId,
-          prefill: {
-            name: "Customer",
-            email: "kiosk@scanprint.in",
-            contact: "9999999999"
-          },
-          theme: {
-            color: "#2563eb"
-          }
-        };
-
-        if (isLocal) {
-          options.handler = async function (response: any) {
-            setStage("printing");
-            try {
-              const verifyRes = await fetch("/api/pay", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_signature: response.razorpay_signature,
-                  jobId: jobId
-                })
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyData.success) {
-                setStage("done");
-              } else {
-                alert("Payment verification failed. Please contact support.");
-                setStage("upload");
-              }
-            } catch (err) {
-              console.error("Local verification failed:", err);
-              alert("Error verifying payment.");
-              setStage("upload");
-            }
-          };
-        } else {
-          options.callback_url = `${window.location.origin}/api/pay/callback?jobId=${jobId}`;
-          options.redirect = true;
-        }
-        // @ts-ignore
-        const rzp = new window.Razorpay(options);
-        rzp.open();
+      const data = await response.json();
+      
+      if (data.success) {
+        setStage("done");
+      } else {
+        alert("Print release failed: " + (data.error || "Unknown error"));
+        setStage("settings");
       }
     } catch (err) {
-      console.error("Payment flow failed:", err);
-      alert("Error starting payment checkout.");
+      console.error("Print flow failed:", err);
+      alert("Error sending print job to printer.");
+      setStage("settings");
     }
   }
 
@@ -347,36 +285,13 @@ export default function Home() {
             <fieldset><legend>Print sides</legend><button className={sides === "single" ? "selected" : ""} onClick={() => setSides("single")}><b>Single-sided</b><small>One side per sheet</small></button><button className={sides === "double" ? "selected" : ""} onClick={() => setSides("double")}><b>Double-sided</b><small>Save paper</small></button></fieldset>
             <label>Copies<div className="counter"><button onClick={() => setCopies(Math.max(1, copies - 1))}>−</button><b>{copies}</b><button onClick={() => setCopies(copies + 1)}>+</button></div></label>
           </div>
-          <div className="summary-bar"><div><span>Total</span><strong>₹{price}</strong><small>{printedPages} pages × {copies} {copies === 1 ? "copy" : "copies"}</small></div><button className="primary" onClick={() => setStage("payment")}>Continue to payment →</button></div>
+          <div className="summary-bar"><div><span>Free Print</span><strong>₹0</strong><small>{printedPages} pages × {copies} {copies === 1 ? "copy" : "copies"}</small></div><button className="primary" onClick={printFile}>Print document →</button></div>
         </>}
-        {stage === "payment" && (
-          <div className="payment-view" style={{ textAlign: "center", padding: "30px 20px" }}>
-            <button className="back floating" onClick={() => setStage("settings")}>←</button>
-            <div className="secure-icon" style={{ fontSize: "40px", color: "var(--green)", display: "inline-block" }}>🔒</div>
-            <h2 style={{ fontSize: "24px", color: "var(--navy)", margin: "16px 0 8px" }}>Secure Payment</h2>
-            <p style={{ color: "var(--text)", fontSize: "14px", margin: "0 0 24px" }}>
-              You are paying <strong>₹{price}</strong> to release your print job.
-            </p>
-            
-            <div style={{ background: "#f8fafc", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px", display: "flex", flexDirection: "column", gap: "10px", textAlign: "left", fontSize: "14px", color: "var(--navy)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Document:</span><strong style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file?.name}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Pages to print:</span><strong>{printedPages} pages</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "10px", marginTop: "5px" }}><span>Total Amount:</span><strong>₹{price}</strong></div>
-            </div>
-
-            <button className="primary wide" onClick={pay} style={{ padding: "14px", fontSize: "16px", fontWeight: 700, width: "100%" }}>
-              Pay Now with Razorpay
-            </button>
-            <p style={{ fontSize: "11px", color: "#64748b", marginTop: "12px" }}>
-              Supports UPI, Credit/Debit Cards, NetBanking & Wallets
-            </p>
-          </div>
-        )}
-        {stage === "printing" && <div className="result-view"><div className="printer-animation"><span>▤</span><i /></div><h2>Payment received!</h2><p>Your document is being printed now.</p><div className="progress"><i /></div><small>Please wait near the printer</small></div>}
-        {stage === "done" && <div className="result-view"><div className="success">✓</div><h2>Your print is ready</h2><p>Please collect all pages from the output tray.</p><div className="receipt"><span>Job ID</span><b>{generatedJobId}</b><span>Amount paid</span><b>₹{price}</b><span>File deleted</span><b className="green">Yes ✓</b></div><button className="primary" onClick={reset}>Print another document</button></div>}
+        {stage === "printing" && <div className="result-view"><div className="printer-animation"><span>▤</span><i /></div><h2>Sending document...</h2><p>Your document is being printed now.</p><div className="progress"><i /></div><small>Please wait near the printer</small></div>}
+        {stage === "done" && <div className="result-view"><div className="success">✓</div><h2>Your print is ready</h2><p>Please collect all pages from the output tray.</p><div className="receipt"><span>Job ID</span><b>{generatedJobId}</b><span>Amount paid</span><b>₹0</b><span>File deleted</span><b className="green">Yes ✓</b></div><button className="primary" onClick={reset}>Print another document</button></div>}
         <Steps stage={stage} />
       </div>
-       <div className="trust-row"><span>🔒 Secure payment</span><span>🗑 Files auto-deleted</span><span>☎ Need help? 830 903 1203</span></div>
+       <div className="trust-row"><span>🖨️ Local Direct Printing</span><span>🗑 Files auto-deleted</span><span>☎ Need help? 830 903 1203</span></div>
       <footer style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center", gap: "16px", fontSize: "11px", color: "#64748b", flexWrap: "wrap" }}>
         <Link href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Privacy Policy</Link>
         <span>·</span>
