@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Script from "next/script";
 import { supabase } from "../lib/supabase";
 
 type Stage = "upload" | "settings" | "payment" | "printing" | "done";
@@ -89,10 +90,31 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("kioskId");
+    const orderParam = params.get("order_id");
     const activeId = idParam ? idParam.toUpperCase() : "KSK-001";
     
     setKioskId(activeId);
     setUploadUrl(window.location.origin + "/?kioskId=" + activeId);
+
+    // Verify Cashfree payment status on landing redirect
+    if (orderParam) {
+      setStage("printing");
+      fetch(`/api/pay?order_id=${orderParam}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.isPaid) {
+            setGeneratedJobId(orderParam);
+            setStage("done");
+          } else {
+            alert(`Payment status: ${data.status || "Pending"}. Print job not released.`);
+            setStage("upload");
+          }
+        })
+        .catch(err => {
+          console.error("Verification failed:", err);
+          setStage("upload");
+        });
+    }
 
     // Fetch details for this kiosk dynamically from Supabase
     supabase
@@ -141,7 +163,6 @@ export default function Home() {
 
   async function pay() {
     if (!file) return;
-    setStage("printing");
     const jobId = `SP-${Math.floor(1000 + Math.random() * 9000)}`;
     setGeneratedJobId(jobId);
 
@@ -172,30 +193,53 @@ export default function Home() {
         kioskId: kioskId
       };
 
-      // 2. Create print job entry in backend database
+      // 2. Create pending print job entry in database
       await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newJob)
       });
 
-      // 3. Simulate UPI confirmation delay, releasing print job
-      setTimeout(async () => {
-        await fetch("/api/jobs", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: jobId, status: "Paid" })
-        });
-        
-        setStage("done");
-      }, 2300);
+      // 3. Initiate Cashfree Checkout Order
+      const payRes = await fetch("/api/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, amount: price, kioskId })
+      });
+      const payData = await payRes.json();
+
+      if (payData.mock) {
+        // Fallback: If Cashfree credentials are not set, proceed to mock UPI payment release delay
+        setStage("printing");
+        setTimeout(async () => {
+          await fetch("/api/jobs", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: jobId, status: "Paid" })
+          });
+          setStage("done");
+        }, 2300);
+      } else if (payData.paymentSessionId) {
+        // Open Cashfree checkout UI
+        // @ts-ignore
+        const cashfree = window.Cashfree ? window.Cashfree({ mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" ? "production" : "sandbox" }) : null;
+        if (cashfree) {
+          cashfree.checkout({
+            paymentSessionId: payData.paymentSessionId,
+            redirectTarget: "_self"
+          });
+        } else {
+          alert("Cashfree SDK failed to load. Please try again.");
+        }
+      }
     } catch (err) {
       console.error("Payment flow failed:", err);
-      setStage("done");
+      alert("Checkout initialization failed.");
     }
   }
 
   return <main>
+    <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="lazyOnload" />
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
