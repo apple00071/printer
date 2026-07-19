@@ -137,11 +137,16 @@ export default function Home() {
       });
 
     const checkMobile = () => {
+      const userAgent = (navigator.userAgent || navigator.vendor || (window as any).opera || "").toLowerCase();
+      const isPhoneUA = /iphone|ipod|android.*mobile|windows phone|blackberry.*mobile/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 600;
       const isMobileView = params.get("view") === "mobile";
-      setIsMobile(isMobileView);
+      setIsMobile(isPhoneUA || isSmallScreen || isMobileView);
     };
 
     checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
