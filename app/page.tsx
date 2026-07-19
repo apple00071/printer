@@ -223,15 +223,14 @@ export default function Home() {
         }, 2300);
       } else if (payData.orderId) {
         // Open Razorpay Standard Checkout overlay
-        const options = {
+        const isLocal = window.location.hostname === "localhost";
+        const options: any = {
           key: payData.keyId,
           amount: payData.amount,
           currency: payData.currency,
           name: "ScanPrint Kiosk",
           description: "Payment to release print job",
           order_id: payData.orderId,
-          callback_url: `${window.location.origin}/api/pay/callback?jobId=${jobId}`,
-          redirect: true,
           prefill: {
             name: "Customer",
             email: "kiosk@scanprint.in",
@@ -241,6 +240,38 @@ export default function Home() {
             color: "#2563eb"
           }
         };
+
+        if (isLocal) {
+          options.handler = async function (response: any) {
+            setStage("printing");
+            try {
+              const verifyRes = await fetch("/api/pay", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  jobId: jobId
+                })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) {
+                setStage("done");
+              } else {
+                alert("Payment verification failed. Please contact support.");
+                setStage("upload");
+              }
+            } catch (err) {
+              console.error("Local verification failed:", err);
+              alert("Error verifying payment.");
+              setStage("upload");
+            }
+          };
+        } else {
+          options.callback_url = `${window.location.origin}/api/pay/callback?jobId=${jobId}`;
+          options.redirect = true;
+        }
         // @ts-ignore
         const rzp = new window.Razorpay(options);
         rzp.open();
