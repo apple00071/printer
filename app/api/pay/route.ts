@@ -41,7 +41,8 @@ export async function POST(request: Request) {
     return Response.json({
       orderId: data.id,
       amount: data.amount,
-      currency: data.currency
+      currency: data.currency,
+      keyId: keyId
     });
   } catch (error: any) {
     console.error("[RAZORPAY POST ERROR]:", error);

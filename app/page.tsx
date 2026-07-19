@@ -213,7 +213,7 @@ export default function Home() {
       } else if (payData.orderId) {
         // Open Razorpay Standard Checkout overlay
         const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          key: payData.keyId,
           amount: payData.amount,
           currency: payData.currency,
           name: "ScanPrint Kiosk",
