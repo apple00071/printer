@@ -91,10 +91,35 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("kioskId");
     const orderParam = params.get("order_id");
-    const activeId = idParam ? idParam.toUpperCase() : "KSK-001";
-    
-    setKioskId(activeId);
-    setUploadUrl(window.location.origin + "/?kioskId=" + activeId);
+
+    // Fetch all kiosks to determine active kiosk dynamically
+    supabase
+      .from("kiosks")
+      .select("*")
+      .then(({ data: kiosksList }) => {
+        let activeId = idParam ? idParam.toUpperCase() : "";
+        
+        // If kioskId not provided, select first available kiosk, fallback to KSK-001
+        if (!activeId) {
+          activeId = kiosksList && kiosksList.length > 0 ? kiosksList[0].id : "KSK-001";
+        } else {
+          // If target kioskId doesn't exist, fallback to first available
+          const exists = kiosksList?.some(k => k.id === activeId);
+          if (!exists && kiosksList && kiosksList.length > 0) {
+            activeId = kiosksList[0].id;
+          }
+        }
+
+        setKioskId(activeId);
+        setUploadUrl(window.location.origin + "/?kioskId=" + activeId);
+
+        // Update details based on active resolved kiosk
+        const activeKiosk = kiosksList?.find(k => k.id === activeId);
+        if (activeKiosk) {
+          setKioskName(activeKiosk.name);
+          setKioskLocation(activeKiosk.location);
+        }
+      });
 
     // Verify Cashfree payment status on landing redirect
     if (orderParam) {
@@ -115,19 +140,6 @@ export default function Home() {
           setStage("upload");
         });
     }
-
-    // Fetch details for this kiosk dynamically from Supabase
-    supabase
-      .from("kiosks")
-      .select("name, location")
-      .eq("id", activeId)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setKioskName(data.name);
-          setKioskLocation(data.location);
-        }
-      });
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);

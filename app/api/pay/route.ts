@@ -39,7 +39,7 @@ export async function POST(request: Request) {
           customer_email: "kiosk@scanprint.in",
         },
         order_meta: {
-          return_url: `${request.headers.get("origin")}/?order_id={order_id}&kioskId=${kioskId || "KSK-001"}`,
+          return_url: `${(request.headers.get("origin") || "").startsWith("https://") ? request.headers.get("origin") : "https://printer-eight-sigma.vercel.app"}/?order_id={order_id}&kioskId=${kioskId || "KSK-001"}`,
         },
       }),
     });
