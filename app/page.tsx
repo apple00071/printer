@@ -292,7 +292,29 @@ export default function Home() {
           </div>
           <div className="summary-bar"><div><span>Total</span><strong>₹{price}</strong><small>{printedPages} pages × {copies} {copies === 1 ? "copy" : "copies"}</small></div><button className="primary" onClick={() => setStage("payment")}>Continue to payment →</button></div>
         </>}
-        {stage === "payment" && <div className="payment-view"><button className="back floating" onClick={() => setStage("settings")}>←</button><div className="secure-icon">✓</div><h2>Pay ₹{price} to print</h2><p>Scan with any UPI app or use the demo payment below.</p><div className="qr-demo"><div className="qr-grid">{Array.from({length: 49}).map((_,i)=><i key={i} className={(i*7+i*3+11)%5<2 ? "dark" : ""}/>)}</div><span>SCAN & PAY</span></div><div className="upi-row"><span>G Pay</span><span>PhonePe</span><span>paytm</span><span>BHIM</span></div><button className="primary wide" onClick={pay}>Simulate successful UPI payment</button><small className="secure-note">🔒 Payment is verified securely before printing</small></div>}
+        {stage === "payment" && (
+          <div className="payment-view" style={{ textAlign: "center", padding: "30px 20px" }}>
+            <button className="back floating" onClick={() => setStage("settings")}>←</button>
+            <div className="secure-icon" style={{ fontSize: "40px", color: "var(--green)", display: "inline-block" }}>🔒</div>
+            <h2 style={{ fontSize: "24px", color: "var(--navy)", margin: "16px 0 8px" }}>Secure Payment</h2>
+            <p style={{ color: "var(--text)", fontSize: "14px", margin: "0 0 24px" }}>
+              You are paying <strong>₹{price}</strong> to release your print job.
+            </p>
+            
+            <div style={{ background: "#f8fafc", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px", display: "flex", flexDirection: "column", gap: "10px", textAlign: "left", fontSize: "14px", color: "var(--navy)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Document:</span><strong style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file?.name}</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Pages to print:</span><strong>{printedPages} pages</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "10px", marginTop: "5px" }}><span>Total Amount:</span><strong>₹{price}</strong></div>
+            </div>
+
+            <button className="primary wide" onClick={pay} style={{ padding: "14px", fontSize: "16px", fontWeight: 700, width: "100%" }}>
+              Pay Now with Cashfree
+            </button>
+            <p style={{ fontSize: "11px", color: "#64748b", marginTop: "12px" }}>
+              Supports UPI, Credit/Debit Cards, NetBanking & Wallets
+            </p>
+          </div>
+        )}
         {stage === "printing" && <div className="result-view"><div className="printer-animation"><span>▤</span><i /></div><h2>Payment received!</h2><p>Your document is being printed now.</p><div className="progress"><i /></div><small>Please wait near the printer</small></div>}
         {stage === "done" && <div className="result-view"><div className="success">✓</div><h2>Your print is ready</h2><p>Please collect all pages from the output tray.</p><div className="receipt"><span>Job ID</span><b>{generatedJobId}</b><span>Amount paid</span><b>₹{price}</b><span>File deleted</span><b className="green">Yes ✓</b></div><button className="primary" onClick={reset}>Print another document</button></div>}
         <Steps stage={stage} />
