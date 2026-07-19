@@ -46,6 +46,30 @@ function getPdfPageCount(file: File): Promise<number> {
   });
 }
 
+function parseCustomRangeCount(rangeStr: string, maxPages: number): number {
+  if (!rangeStr.trim()) return 1;
+  const pages = new Set<number>();
+  const parts = rangeStr.split(",");
+  for (const part of parts) {
+    const range = part.trim().split("-");
+    if (range.length === 1) {
+      const num = parseInt(range[0], 10);
+      if (!isNaN(num) && num >= 1 && num <= maxPages) {
+        pages.add(num);
+      }
+    } else if (range.length === 2) {
+      const start = parseInt(range[0], 10);
+      const end = parseInt(range[1], 10);
+      if (!isNaN(start) && !isNaN(end) && start >= 1 && end <= maxPages && start <= end) {
+        for (let i = start; i <= end; i++) {
+          pages.add(i);
+        }
+      }
+    }
+  }
+  return pages.size > 0 ? pages.size : 1;
+}
+
 export default function Home() {
   const [stage, setStage] = useState<Stage>("upload");
   const [file, setFile] = useState<File | null>(null);
@@ -53,7 +77,8 @@ export default function Home() {
   const [color, setColor] = useState<"bw" | "color">("bw");
   const [sides, setSides] = useState<"single" | "double">("single");
   const [copies, setCopies] = useState(1);
-  const [pages, setPages] = useState(4);
+  const [pdfPages, setPdfPages] = useState(1);
+  const [customRange, setCustomRange] = useState("");
   const [range, setRange] = useState("All pages");
   const [generatedJobId, setGeneratedJobId] = useState("");
   const [kioskId, setKioskId] = useState("KSK-001");
@@ -84,7 +109,21 @@ export default function Home() {
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const price = useMemo(() => pages * copies * (color === "color" ? 10 : 2), [pages, copies, color]);
+  
+  const printedPages = useMemo(() => {
+    if (range === "All pages") {
+      return pdfPages;
+    } else if (range === "Odd pages only") {
+      return Math.ceil(pdfPages / 2);
+    } else if (range === "Even pages only") {
+      return Math.floor(pdfPages / 2);
+    } else if (range === "Custom range") {
+      return parseCustomRangeCount(customRange, pdfPages);
+    }
+    return pdfPages;
+  }, [range, pdfPages, customRange]);
+
+  const price = useMemo(() => printedPages * copies * (color === "color" ? 10 : 2), [printedPages, copies, color]);
 
   async function selectFile(next?: File) {
     if (!next) return;
@@ -92,12 +131,13 @@ export default function Home() {
     if (next.size > 20 * 1024 * 1024) return alert("The maximum file size is 20 MB.");
     
     const pageCount = await getPdfPageCount(next);
-    setPages(pageCount);
+    setPdfPages(pageCount);
+    setCustomRange(`1-${pageCount}`);
     setFile(next);
     setStage("settings");
   }
   
-  function reset() { setStage("upload"); setFile(null); setColor("bw"); setCopies(1); setPages(4); setRange("All pages"); }
+  function reset() { setStage("upload"); setFile(null); setColor("bw"); setCopies(1); setRange("All pages"); setPdfPages(1); setCustomRange(""); }
 
   async function pay() {
     if (!file) return;
@@ -127,8 +167,8 @@ export default function Home() {
         color,
         sides,
         copies,
-        pages,
-        range,
+        pages: printedPages,
+        range: range === "Custom range" ? customRange : range,
         kioskId: kioskId
       };
 
@@ -183,13 +223,30 @@ export default function Home() {
         {stage === "settings" && <>
           <div className="card-heading"><button className="back" onClick={reset}>←</button><div><h2>Choose print settings</h2><p>{file?.name} · {(file?.size || 0) / 1024 / 1024 < 0.1 ? "0.1" : ((file?.size || 0) / 1024 / 1024).toFixed(1)} MB</p></div></div>
           <div className="settings-grid">
-            <label>Number of pages<input type="number" min="1" max="100" value={pages} onChange={e => setPages(Math.max(1, Number(e.target.value)))} /></label>
+            <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: "8px", border: "1px dashed var(--border)", display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: "12px", color: "var(--text)", fontWeight: 700 }}>Total print sheets</span>
+              <strong style={{ fontSize: "18px", color: "var(--navy)", marginTop: "4px" }}>{printedPages} pages <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>(out of {pdfPages})</span></strong>
+            </div>
             <label>Page range<select value={range} onChange={e => setRange(e.target.value)}><option>All pages</option><option>Custom range</option><option>Odd pages only</option><option>Even pages only</option></select></label>
+            
+            {range === "Custom range" && (
+              <label style={{ gridColumn: "span 2" }}>
+                Enter page numbers (e.g., 1-3, 5)
+                <input 
+                  type="text" 
+                  placeholder={`e.g. 1-${pdfPages}`} 
+                  value={customRange} 
+                  onChange={e => setCustomRange(e.target.value)}
+                  style={{ marginTop: "6px" }}
+                />
+              </label>
+            )}
+            
             <fieldset><legend>Print colour</legend><button className={color === "bw" ? "selected" : ""} onClick={() => setColor("bw")}><b>Black & white</b><small>₹2 / page</small></button><button className={color === "color" ? "selected" : ""} onClick={() => setColor("color")}><b>Colour</b><small>₹10 / page</small></button></fieldset>
             <fieldset><legend>Print sides</legend><button className={sides === "single" ? "selected" : ""} onClick={() => setSides("single")}><b>Single-sided</b><small>One side per sheet</small></button><button className={sides === "double" ? "selected" : ""} onClick={() => setSides("double")}><b>Double-sided</b><small>Save paper</small></button></fieldset>
             <label>Copies<div className="counter"><button onClick={() => setCopies(Math.max(1, copies - 1))}>−</button><b>{copies}</b><button onClick={() => setCopies(copies + 1)}>+</button></div></label>
           </div>
-          <div className="summary-bar"><div><span>Total</span><strong>₹{price}</strong><small>{pages} pages × {copies} {copies === 1 ? "copy" : "copies"}</small></div><button className="primary" onClick={() => setStage("payment")}>Continue to payment →</button></div>
+          <div className="summary-bar"><div><span>Total</span><strong>₹{price}</strong><small>{printedPages} pages × {copies} {copies === 1 ? "copy" : "copies"}</small></div><button className="primary" onClick={() => setStage("payment")}>Continue to payment →</button></div>
         </>}
         {stage === "payment" && <div className="payment-view"><button className="back floating" onClick={() => setStage("settings")}>←</button><div className="secure-icon">✓</div><h2>Pay ₹{price} to print</h2><p>Scan with any UPI app or use the demo payment below.</p><div className="qr-demo"><div className="qr-grid">{Array.from({length: 49}).map((_,i)=><i key={i} className={(i*7+i*3+11)%5<2 ? "dark" : ""}/>)}</div><span>SCAN & PAY</span></div><div className="upi-row"><span>G Pay</span><span>PhonePe</span><span>paytm</span><span>BHIM</span></div><button className="primary wide" onClick={pay}>Simulate successful UPI payment</button><small className="secure-note">🔒 Payment is verified securely before printing</small></div>}
         {stage === "printing" && <div className="result-view"><div className="printer-animation"><span>▤</span><i /></div><h2>Payment received!</h2><p>Your document is being printed now.</p><div className="progress"><i /></div><small>Please wait near the printer</small></div>}
