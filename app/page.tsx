@@ -83,10 +83,10 @@ export default function Home() {
   const [customRange, setCustomRange] = useState("");
   const [range, setRange] = useState("All pages");
   const [generatedJobId, setGeneratedJobId] = useState("");
-  const [kioskId, setKioskId] = useState("KSK-001");
+  const [kioskId, setKioskId] = useState("");
   const [kioskName, setKioskName] = useState("HP LaserJet Pro");
   const [kioskLocation, setKioskLocation] = useState("Kavali");
-  const [uploadUrl, setUploadUrl] = useState("https://kiosk.scanprint.in/?kioskId=KSK-001");
+  const [uploadUrl, setUploadUrl] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [bypassKiosk, setBypassKiosk] = useState(false);
   const [isKioskDevice, setIsKioskDevice] = useState(false);
@@ -113,26 +113,17 @@ export default function Home() {
       .select("*")
       .then(({ data: kiosksList }) => {
         let activeId = idParam ? idParam.toUpperCase() : "";
-        
-        // If kioskId not provided, select first available kiosk, fallback to KSK-001
-        if (!activeId) {
-          activeId = kiosksList && kiosksList.length > 0 ? kiosksList[0].id : "KSK-001";
-        } else {
-          // If target kioskId doesn't exist, fallback to first available
+        if (activeId) {
           const exists = kiosksList?.some(k => k.id === activeId);
-          if (!exists && kiosksList && kiosksList.length > 0) {
-            activeId = kiosksList[0].id;
+          if (exists) {
+            setKioskId(activeId);
+            setUploadUrl(window.location.origin + "/?kioskId=" + activeId + "&view=mobile");
+            const activeKiosk = kiosksList?.find(k => k.id === activeId);
+            if (activeKiosk) {
+              setKioskName(activeKiosk.name);
+              setKioskLocation(activeKiosk.location);
+            }
           }
-        }
-
-        setKioskId(activeId);
-        setUploadUrl(window.location.origin + "/?kioskId=" + activeId + "&view=mobile");
-
-        // Update details based on active resolved kiosk
-        const activeKiosk = kiosksList?.find(k => k.id === activeId);
-        if (activeKiosk) {
-          setKioskName(activeKiosk.name);
-          setKioskLocation(activeKiosk.location);
         }
       });
 
@@ -255,9 +246,50 @@ export default function Home() {
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
-      <div className="hero"><span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span><h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
+      <div className="hero">{kioskId && <span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span>}<h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
       <div className="flow-card">
-        {stage === "upload" && isKioskDevice && !isMobile && !bypassKiosk && (
+        {stage === "upload" && !kioskId && (
+          <div className="connect-kiosk-view" style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div style={{ fontSize: "50px", margin: "0 0 16px" }}>📷</div>
+            <h2 style={{ fontSize: "24px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan Kiosk QR Code</h2>
+            <p style={{ color: "var(--text)", fontSize: "14px", lineHeight: "1.5", margin: "0 0 24px" }}>
+              To print your documents, please scan the QR code sticker pasted on the physical printer kiosk using your phone's default camera app.
+            </p>
+            
+            <div style={{ margin: "24px 0", borderTop: "1px solid var(--border)", paddingTop: "20px" }}>
+              <p style={{ color: "#64748b", fontSize: "12px", margin: "0 0 12px" }}>Or enter the Kiosk ID manually:</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const input = form.elements.namedItem("kioskInput") as HTMLInputElement;
+                const value = input.value.trim().toUpperCase();
+                if (value) {
+                  setKioskId(value);
+                  setUploadUrl(window.location.origin + "/?kioskId=" + value + "&view=mobile");
+                  supabase.from("kiosks").select("*").eq("id", value).single().then(({ data }) => {
+                    if (data) {
+                      setKioskName(data.name);
+                      setKioskLocation(data.location);
+                    }
+                  });
+                }
+              }} style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                <input 
+                  name="kioskInput"
+                  type="text" 
+                  placeholder="e.g. KSK-001" 
+                  required
+                  style={{ padding: "10px 14px", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "14px", width: "160px", textTransform: "uppercase" }}
+                />
+                <button type="submit" className="primary" style={{ padding: "10px 18px", fontSize: "14px" }}>
+                  Connect
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {stage === "upload" && kioskId && isKioskDevice && !isMobile && !bypassKiosk && (
           <div className="kiosk-welcome-view" style={{ textAlign: "center", padding: "30px 10px" }}>
             <h2 style={{ fontSize: "28px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan QR to Print</h2>
             <p style={{ color: "var(--text)", fontSize: "15px", margin: "0 0 32px" }}>
@@ -294,7 +326,7 @@ export default function Home() {
           </div>
         )}
 
-        {stage === "upload" && (!isKioskDevice || isMobile || bypassKiosk) && <>
+        {stage === "upload" && kioskId && (!isKioskDevice || isMobile || bypassKiosk) && <>
           <div className="card-heading"><div><h2>Upload your document</h2><p>We automatically delete your file after printing.</p></div></div>
           <div className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => inputRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files[0]); }}>
             <input ref={inputRef} type="file" accept="application/pdf, image/*" hidden onChange={e => selectFile(e.target.files?.[0])} />
