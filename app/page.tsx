@@ -87,6 +87,8 @@ export default function Home() {
   const [kioskName, setKioskName] = useState("HP LaserJet Pro");
   const [kioskLocation, setKioskLocation] = useState("Kavali");
   const [uploadUrl, setUploadUrl] = useState("https://kiosk.scanprint.in/?kioskId=KSK-001");
+  const [isMobile, setIsMobile] = useState(false);
+  const [bypassKiosk, setBypassKiosk] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -121,7 +123,7 @@ export default function Home() {
         }
 
         setKioskId(activeId);
-        setUploadUrl(window.location.origin + "/?kioskId=" + activeId);
+        setUploadUrl(window.location.origin + "/?kioskId=" + activeId + "&view=mobile");
 
         // Update details based on active resolved kiosk
         const activeKiosk = kiosksList?.find(k => k.id === activeId);
@@ -130,6 +132,18 @@ export default function Home() {
           setKioskLocation(activeKiosk.location);
         }
       });
+
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      const isSmallScreen = window.innerWidth <= 768;
+      const isMobileView = params.get("view") === "mobile";
+      setIsMobile(isMobileUA || isSmallScreen || isMobileView);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -240,23 +254,48 @@ export default function Home() {
     <section className="customer-shell">
       <div className="hero"><span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span><h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
       <div className="flow-card">
-        {stage === "upload" && <>
+        {stage === "upload" && !isMobile && !bypassKiosk && (
+          <div className="kiosk-welcome-view" style={{ textAlign: "center", padding: "30px 10px" }}>
+            <h2 style={{ fontSize: "28px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan QR to Print</h2>
+            <p style={{ color: "var(--text)", fontSize: "15px", margin: "0 0 32px" }}>
+              Scan this QR code with your mobile camera to upload documents or images directly.
+            </p>
+            
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "40px", flexWrap: "wrap", margin: "24px 0" }}>
+              <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "16px", padding: "16px", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(uploadUrl)}`} 
+                  alt="Scan to Upload QR"
+                  style={{ width: "180px", height: "180px" }}
+                />
+              </div>
+              
+              <div style={{ textAlign: "left", maxWidth: "280px" }}>
+                <h3 style={{ fontSize: "18px", color: "var(--navy)", margin: "0 0 16px", fontWeight: 700 }}>How it works:</h3>
+                <ol style={{ margin: 0, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "12px", color: "var(--text)", fontSize: "14px", lineHeight: "1.5" }}>
+                  <li>Scan the QR code using your phone's camera.</li>
+                  <li>Choose files from your mobile phone local storage.</li>
+                  <li>Select print settings and press print!</li>
+                </ol>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "40px", borderTop: "1px solid var(--border)", paddingTop: "20px" }}>
+              <button 
+                onClick={() => setBypassKiosk(true)}
+                style={{ background: "none", border: "none", color: "var(--blue)", cursor: "pointer", fontSize: "13px", fontWeight: 600, textDecoration: "underline" }}
+              >
+                Or upload directly from this computer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {stage === "upload" && (isMobile || bypassKiosk) && <>
           <div className="card-heading"><div><h2>Upload your document</h2><p>We automatically delete your file after printing.</p></div></div>
           <div className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => inputRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files[0]); }}>
             <input ref={inputRef} type="file" accept="application/pdf, image/*" hidden onChange={e => selectFile(e.target.files?.[0])} />
             <div className="pdf-icon" style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}><span>FILE</span></div><h3>Drag & drop PDF or Image here</h3><p>or</p><button className="primary">Choose a file</button><small>PDF, JPG, PNG, WEBP · Up to 20 MB</small>
-          </div>
-          
-          <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", color: "var(--navy)" }}>
-            <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(uploadUrl)}`} 
-              alt="Scan to Upload QR"
-              style={{ width: "90px", height: "90px", border: "1px solid var(--border)", borderRadius: "8px", padding: "6px", background: "#fff" }}
-            />
-            <div style={{ textAlign: "left" }}>
-              <h4 style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: 800 }}>Print from your phone</h4>
-              <p style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}>Scan this QR code to upload your document directly from your mobile storage.</p>
-            </div>
           </div>
         </>}
         {stage === "settings" && <>
