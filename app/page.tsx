@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Script from "next/script";
 import { supabase } from "../lib/supabase";
 
 type Stage = "upload" | "settings" | "payment" | "printing" | "done";
@@ -90,7 +89,6 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("kioskId");
-    const orderParam = params.get("order_id");
 
     // Fetch all kiosks to determine active kiosk dynamically
     supabase
@@ -120,26 +118,6 @@ export default function Home() {
           setKioskLocation(activeKiosk.location);
         }
       });
-
-    // Verify Cashfree payment status on landing redirect
-    if (orderParam) {
-      setStage("printing");
-      fetch(`/api/pay?order_id=${orderParam}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.isPaid) {
-            setGeneratedJobId(orderParam);
-            setStage("done");
-          } else {
-            alert(`Payment status: ${data.status || "Pending"}. Print job not released.`);
-            setStage("upload");
-          }
-        })
-        .catch(err => {
-          console.error("Verification failed:", err);
-          setStage("upload");
-        });
-    }
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,6 +153,7 @@ export default function Home() {
 
   async function pay() {
     if (!file) return;
+    setStage("printing");
     const jobId = `SP-${Math.floor(1000 + Math.random() * 9000)}`;
     setGeneratedJobId(jobId);
 
@@ -212,46 +191,22 @@ export default function Home() {
         body: JSON.stringify(newJob)
       });
 
-      // 3. Initiate Cashfree Checkout Order
-      const payRes = await fetch("/api/pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, amount: price, kioskId })
-      });
-      const payData = await payRes.json();
-
-      if (payData.mock) {
-        // Fallback: If Cashfree credentials are not set, proceed to mock UPI payment release delay
-        setStage("printing");
-        setTimeout(async () => {
-          await fetch("/api/jobs", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: jobId, status: "Paid" })
-          });
-          setStage("done");
-        }, 2300);
-      } else if (payData.paymentSessionId) {
-        // Open Cashfree checkout UI
-        // @ts-ignore
-        const cashfree = window.Cashfree ? window.Cashfree({ mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === "production" ? "production" : "sandbox" }) : null;
-        if (cashfree) {
-          cashfree.checkout({
-            paymentSessionId: payData.paymentSessionId,
-            redirectTarget: "_self"
-          });
-        } else {
-          alert("Cashfree SDK failed to load. Please try again.");
-        }
-      }
+      // 3. Simulate payment release confirmation directly
+      setTimeout(async () => {
+        await fetch("/api/jobs", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: jobId, status: "Paid" })
+        });
+        setStage("done");
+      }, 2300);
     } catch (err) {
       console.error("Payment flow failed:", err);
-      alert("Checkout initialization failed.");
+      setStage("done");
     }
   }
 
   return <main>
-    <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="lazyOnload" />
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
@@ -320,10 +275,10 @@ export default function Home() {
             </div>
 
             <button className="primary wide" onClick={pay} style={{ padding: "14px", fontSize: "16px", fontWeight: 700, width: "100%" }}>
-              Pay Now with Cashfree
+              Simulate Successful UPI Payment
             </button>
             <p style={{ fontSize: "11px", color: "#64748b", marginTop: "12px" }}>
-              Supports UPI, Credit/Debit Cards, NetBanking & Wallets
+              Simulates secure UPI transaction confirmation to release the print job.
             </p>
           </div>
         )}
