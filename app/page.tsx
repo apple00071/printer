@@ -56,10 +56,31 @@ export default function Home() {
   const [pages, setPages] = useState(4);
   const [range, setRange] = useState("All pages");
   const [generatedJobId, setGeneratedJobId] = useState("");
+  const [kioskId, setKioskId] = useState("KSK-001");
+  const [kioskName, setKioskName] = useState("HP LaserJet Pro");
+  const [kioskLocation, setKioskLocation] = useState("Kavali");
   const [uploadUrl, setUploadUrl] = useState("https://kiosk.scanprint.in/?kioskId=KSK-001");
 
   useEffect(() => {
-    setUploadUrl(window.location.origin + "/?kioskId=KSK-001");
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("kioskId");
+    const activeId = idParam ? idParam.toUpperCase() : "KSK-001";
+    
+    setKioskId(activeId);
+    setUploadUrl(window.location.origin + "/?kioskId=" + activeId);
+
+    // Fetch details for this kiosk dynamically from Supabase
+    supabase
+      .from("kiosks")
+      .select("name, location")
+      .eq("id", activeId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setKioskName(data.name);
+          setKioskLocation(data.location);
+        }
+      });
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +129,7 @@ export default function Home() {
         copies,
         pages,
         range,
-        kioskId: "KSK-001"
+        kioskId: kioskId
       };
 
       // 2. Create print job entry in backend database
@@ -138,7 +159,7 @@ export default function Home() {
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
-      <div className="hero"><span className="eyebrow">KIOSK KAVALI · KSK-001</span><h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
+      <div className="hero"><span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span><h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
       <div className="flow-card">
         {stage === "upload" && <>
           <div className="card-heading"><div><h2>Upload your document</h2><p>We automatically delete your file after printing.</p></div></div>
