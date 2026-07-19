@@ -91,6 +91,95 @@ export default function Home() {
   const [bypassKiosk, setBypassKiosk] = useState(false);
   const [isKioskDevice, setIsKioskDevice] = useState(false);
 
+  const [scanning, setScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  async function startScanner() {
+    setScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.play();
+      }
+      requestAnimationFrame(tick);
+    } catch (err) {
+      console.error("Camera access failed:", err);
+      alert("Failed to access camera. Please grant camera permissions or type Kiosk ID manually.");
+      setScanning(false);
+    }
+  }
+
+  function stopScanner() {
+    setScanning(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }
+
+  function tick() {
+    if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+      if (streamRef.current) requestAnimationFrame(tick);
+      return;
+    }
+
+    const canvas = canvasRef.current || document.createElement("canvas");
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // @ts-ignore
+    if (window.jsQR) {
+      // @ts-ignore
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert"
+      });
+
+      if (code) {
+        const qrText = code.data;
+        console.log("QR Code detected:", qrText);
+        
+        let detectedKioskId = "";
+        try {
+          const url = new URL(qrText);
+          detectedKioskId = url.searchParams.get("kioskId") || "";
+        } catch (e) {
+          if (/^KSK-\d+$/i.test(qrText.trim())) {
+            detectedKioskId = qrText.trim().toUpperCase();
+          }
+        }
+
+        if (detectedKioskId) {
+          stopScanner();
+          const finalId = detectedKioskId.toUpperCase();
+          setKioskId(finalId);
+          setUploadUrl(window.location.origin + "/?kioskId=" + finalId + "&view=mobile");
+          supabase.from("kiosks").select("*").eq("id", finalId).single().then(({ data }) => {
+            if (data) {
+              setKioskName(data.name);
+              setKioskLocation(data.location);
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    if (streamRef.current) requestAnimationFrame(tick);
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get("kioskId");
@@ -243,18 +332,36 @@ export default function Home() {
 
   return <main>
     <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+    <Script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" strategy="lazyOnload" />
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
       <div className="hero">{kioskId && <span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span>}<h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
       <div className="flow-card">
         {stage === "upload" && !kioskId && (
-          <div className="connect-kiosk-view" style={{ textAlign: "center", padding: "40px 20px" }}>
+          <div className="connect-kiosk-view" style={{ textAlign: "center", padding: "30px 20px" }}>
             <div style={{ fontSize: "50px", margin: "0 0 16px" }}>📷</div>
             <h2 style={{ fontSize: "24px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan Kiosk QR Code</h2>
             <p style={{ color: "var(--text)", fontSize: "14px", lineHeight: "1.5", margin: "0 0 24px" }}>
-              To print your documents, please scan the QR code sticker pasted on the physical printer kiosk using your phone's default camera app.
+              To print your documents, scan the QR code sticker pasted on the physical printer kiosk.
             </p>
+            
+            {!scanning ? (
+              <button className="primary wide" onClick={startScanner} style={{ padding: "12px 24px", fontSize: "16px", fontWeight: 700, margin: "10px 0" }}>
+                📷 Start Camera Scanner
+              </button>
+            ) : (
+              <div style={{ margin: "20px 0" }}>
+                <div style={{ position: "relative", width: "100%", maxWidth: "320px", height: "240px", margin: "0 auto 16px", borderRadius: "12px", overflow: "hidden", border: "2px solid var(--blue)", background: "#000" }}>
+                  <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <div style={{ position: "absolute", top: "15%", left: "15%", right: "15%", bottom: "15%", border: "2px dashed rgba(255,255,255,0.7)", borderRadius: "8px", pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, padding: "8px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "11px" }}>Point camera at Kiosk QR Sticker</div>
+                </div>
+                <button className="primary" onClick={stopScanner} style={{ background: "#ef4444", padding: "10px 20px" }}>
+                  Cancel
+                </button>
+              </div>
+            )}
             
             <div style={{ margin: "24px 0", borderTop: "1px solid var(--border)", paddingTop: "20px" }}>
               <p style={{ color: "#64748b", fontSize: "12px", margin: "0 0 12px" }}>Or enter the Kiosk ID manually:</p>
