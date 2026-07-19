@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Starter Project",
-  description: "A clean starting point for building your site.",
+  title: "ScanPrint Kiosk - Self-Service Printing",
+  description: "Upload, pay via UPI, and print your documents instantly.",
   other: {
     "codex-preview": "development",
   },
