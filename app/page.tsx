@@ -89,6 +89,7 @@ export default function Home() {
   const [uploadUrl, setUploadUrl] = useState("https://kiosk.scanprint.in/?kioskId=KSK-001");
   const [isMobile, setIsMobile] = useState(false);
   const [bypassKiosk, setBypassKiosk] = useState(false);
+  const [isKioskDevice, setIsKioskDevice] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,6 +97,8 @@ export default function Home() {
     const jobIdParam = params.get("jobId");
     const statusParam = params.get("status");
     const msgParam = params.get("msg");
+
+    setIsKioskDevice(params.has("kioskId"));
 
     if (statusParam === "success" && jobIdParam) {
       setGeneratedJobId(jobIdParam);
@@ -249,7 +252,7 @@ export default function Home() {
     <section className="customer-shell">
       <div className="hero"><span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span><h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
       <div className="flow-card">
-        {stage === "upload" && !isMobile && !bypassKiosk && (
+        {stage === "upload" && isKioskDevice && !isMobile && !bypassKiosk && (
           <div className="kiosk-welcome-view" style={{ textAlign: "center", padding: "30px 10px" }}>
             <h2 style={{ fontSize: "28px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan QR to Print</h2>
             <p style={{ color: "var(--text)", fontSize: "15px", margin: "0 0 32px" }}>
@@ -286,7 +289,7 @@ export default function Home() {
           </div>
         )}
 
-        {stage === "upload" && (isMobile || bypassKiosk) && <>
+        {stage === "upload" && (!isKioskDevice || isMobile || bypassKiosk) && <>
           <div className="card-heading"><div><h2>Upload your document</h2><p>We automatically delete your file after printing.</p></div></div>
           <div className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => inputRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files[0]); }}>
             <input ref={inputRef} type="file" accept="application/pdf, image/*" hidden onChange={e => selectFile(e.target.files?.[0])} />
