@@ -20,10 +20,12 @@ export async function POST(request: Request) {
       razorpay_order_id = body.razorpay_order_id;
       razorpay_signature = body.razorpay_signature;
     } else {
-      const formData = await request.formData();
-      razorpay_payment_id = formData.get("razorpay_payment_id")?.toString();
-      razorpay_order_id = formData.get("razorpay_order_id")?.toString();
-      razorpay_signature = formData.get("razorpay_signature")?.toString();
+      const bodyText = await request.text();
+      console.log("[RAZORPAY CALLBACK] Raw body text:", bodyText);
+      const params = new URLSearchParams(bodyText);
+      razorpay_payment_id = params.get("razorpay_payment_id")?.toString();
+      razorpay_order_id = params.get("razorpay_order_id")?.toString();
+      razorpay_signature = params.get("razorpay_signature")?.toString();
     }
 
     console.log("[RAZORPAY CALLBACK] Parsed credentials:", {
