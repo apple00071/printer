@@ -90,6 +90,7 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [bypassKiosk, setBypassKiosk] = useState(false);
   const [isKioskDevice, setIsKioskDevice] = useState(false);
+  const [started, setStarted] = useState(false);
 
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -336,9 +337,52 @@ export default function Home() {
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
-      <div className="hero">{kioskId && <span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span>}<h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
-      <div className="flow-card">
-        {stage === "upload" && !kioskId && (
+      {!kioskId && !started ? (
+        <div className="marketing-landing" style={{ padding: "40px 0", textAlign: "center", maxWidth: "800px", margin: "0 auto" }}>
+          <div style={{ display: "inline-block", background: "rgba(18, 97, 234, 0.08)", color: "var(--blue)", padding: "8px 18px", borderRadius: "30px", fontSize: "13px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "20px" }}>
+            🖨️ Self-Service Print Kiosks
+          </div>
+          <h1 style={{ fontSize: "clamp(34px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.15, color: "var(--navy)", letterSpacing: "-2px", margin: "0 0 20px" }}>
+            Print Documents Instantly From Your Phone
+          </h1>
+          <p style={{ fontSize: "18px", color: "var(--text)", lineHeight: 1.5, maxWidth: "600px", margin: "0 auto 36px" }}>
+            No apps. No registrations. Simply connect to any local ScanPrint kiosk, upload your files, and collect your prints.
+          </p>
+
+          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", marginBottom: "48px" }}>
+            <button className="primary" onClick={() => { setStarted(true); startScanner(); }} style={{ padding: "14px 32px", fontSize: "16px", fontWeight: 750 }}>
+              📷 Scan QR to Start
+            </button>
+            <button className="secondary" onClick={() => setStarted(true)} style={{ padding: "14px 32px", fontSize: "16px", fontWeight: 750 }}>
+              ⌨️ Enter Kiosk ID
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", margin: "40px 0", textAlign: "left" }}>
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
+              <div style={{ fontSize: "28px", marginBottom: "12px" }}>⚡</div>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>Lightning Fast</h3>
+              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Your document prints in less than 30 seconds from uploading.</p>
+            </div>
+            
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
+              <div style={{ fontSize: "28px", marginBottom: "12px" }}>🔒</div>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>100% Secure</h3>
+              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Files are processed over encrypted channels and auto-deleted immediately after printing.</p>
+            </div>
+
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
+              <div style={{ fontSize: "28px", marginBottom: "12px" }}>📱</div>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>No Apps Needed</h3>
+              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Works directly in your mobile browser. Just scan and print.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="hero">{kioskId && <span className="eyebrow">KIOSK {kioskLocation.toUpperCase()} · {kioskId}</span>}<h1>Upload. Pay. Print.</h1><p>Your documents, printed in minutes.</p></div>
+          <div className="flow-card">
+            {stage === "upload" && !kioskId && (
           <div className="connect-kiosk-view" style={{ textAlign: "center", padding: "30px 20px" }}>
             <div style={{ fontSize: "50px", margin: "0 0 16px" }}>📷</div>
             <h2 style={{ fontSize: "24px", color: "var(--navy)", margin: "0 0 8px", fontWeight: 800 }}>Scan Kiosk QR Code</h2>
@@ -473,6 +517,8 @@ export default function Home() {
         <Steps stage={stage} />
       </div>
        <div className="trust-row"><span>🖨️ Local Direct Printing</span><span>🗑 Files auto-deleted</span><span>☎ Need help? 830 903 1203</span></div>
+       </>
+      )}
       <footer style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center", gap: "16px", fontSize: "11px", color: "#64748b", flexWrap: "wrap" }}>
         <Link href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Privacy Policy</Link>
         <span>·</span>
