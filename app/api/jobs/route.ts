@@ -113,6 +113,10 @@ export async function PUT(request: Request) {
 
     // Stream to printer and decrement printer health
     if (status === "Paid" || status === "Printing") {
+      if (process.env.VERCEL === "1") {
+        console.log(`[VERCEL CLOUD] Job ${id} marked as Paid. Yielding print release to local print-agent.`);
+        return Response.json({ success: true, cloudBuffered: true }, { status: 200 });
+      }
       const activeKioskId = jobRecord.kiosk_id || "KSK-001";
       const { data: kioskRecord } = await supabase
         .from("kiosks")
