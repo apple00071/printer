@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Script from "next/script";
 import { supabase } from "../lib/supabase";
 
 type Stage = "upload" | "settings" | "payment" | "printing" | "done";
@@ -153,7 +154,6 @@ export default function Home() {
 
   async function pay() {
     if (!file) return;
-    setStage("printing");
     const jobId = `SP-${Math.floor(1000 + Math.random() * 9000)}`;
     setGeneratedJobId(jobId);
 
@@ -191,22 +191,81 @@ export default function Home() {
         body: JSON.stringify(newJob)
       });
 
-      // 3. Simulate payment release confirmation directly
-      setTimeout(async () => {
-        await fetch("/api/jobs", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: jobId, status: "Paid" })
-        });
-        setStage("done");
-      }, 2300);
+      // 3. Initiate Razorpay Checkout Order
+      const payRes = await fetch("/api/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, amount: price })
+      });
+      const payData = await payRes.json();
+
+      if (payData.mock) {
+        // Fallback: If Razorpay credentials are not set, proceed to mock UPI payment release delay
+        setStage("printing");
+        setTimeout(async () => {
+          await fetch("/api/jobs", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: jobId, status: "Paid" })
+          });
+          setStage("done");
+        }, 2300);
+      } else if (payData.orderId) {
+        // Open Razorpay Standard Checkout overlay
+        const options = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: payData.amount,
+          currency: payData.currency,
+          name: "ScanPrint Kiosk",
+          description: "Payment to release print job",
+          order_id: payData.orderId,
+          handler: async function (response: any) {
+            setStage("printing");
+            try {
+              const verifyRes = await fetch("/api/pay", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  jobId: jobId
+                })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) {
+                setStage("done");
+              } else {
+                alert("Payment verification failed. Please contact support.");
+                setStage("upload");
+              }
+            } catch (err) {
+              console.error("Verification callback failed:", err);
+              alert("Error verifying payment.");
+              setStage("upload");
+            }
+          },
+          prefill: {
+            name: "Customer",
+            email: "kiosk@scanprint.in",
+            contact: "9999999999"
+          },
+          theme: {
+            color: "#2563eb"
+          }
+        };
+        // @ts-ignore
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      }
     } catch (err) {
       console.error("Payment flow failed:", err);
-      setStage("done");
+      alert("Error starting payment checkout.");
     }
   }
 
   return <main>
+    <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
     <header><Brand /><StatusPills /></header>
 
     <section className="customer-shell">
@@ -275,10 +334,10 @@ export default function Home() {
             </div>
 
             <button className="primary wide" onClick={pay} style={{ padding: "14px", fontSize: "16px", fontWeight: 700, width: "100%" }}>
-              Simulate Successful UPI Payment
+              Pay Now with Razorpay
             </button>
             <p style={{ fontSize: "11px", color: "#64748b", marginTop: "12px" }}>
-              Simulates secure UPI transaction confirmation to release the print job.
+              Supports UPI, Credit/Debit Cards, NetBanking & Wallets
             </p>
           </div>
         )}
