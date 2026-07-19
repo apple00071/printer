@@ -87,7 +87,7 @@ async function pollJobs() {
           continue;
         }
 
-        // Convert Blob file to ArrayBuffer
+        // Convert Blob file to Node Buffer
         const arrayBuffer = await fileBlob.arrayBuffer();
         const fileBuffer = Buffer.from(arrayBuffer);
 
