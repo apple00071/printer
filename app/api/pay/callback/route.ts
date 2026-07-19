@@ -14,11 +14,14 @@ export async function POST(request: Request) {
     const contentType = request.headers.get("content-type") || "";
     console.log(`[RAZORPAY CALLBACK] Content-Type is ${contentType} for Job: ${jobId}`);
 
+    let errorMsg: string | null | undefined;
+
     if (contentType.includes("application/json")) {
       const body = await request.json();
       razorpay_payment_id = body.razorpay_payment_id;
       razorpay_order_id = body.razorpay_order_id;
       razorpay_signature = body.razorpay_signature;
+      errorMsg = body.error?.description || body.error?.reason;
     } else {
       const bodyText = await request.text();
       console.log("[RAZORPAY CALLBACK] Raw body text:", bodyText);
@@ -26,6 +29,11 @@ export async function POST(request: Request) {
       razorpay_payment_id = params.get("razorpay_payment_id")?.toString();
       razorpay_order_id = params.get("razorpay_order_id")?.toString();
       razorpay_signature = params.get("razorpay_signature")?.toString();
+      errorMsg = params.get("error") || params.get("error[description]") || params.get("error[metadata][description]");
+    }
+
+    if (errorMsg) {
+      throw new Error(`Razorpay Checkout Error: ${errorMsg}`);
     }
 
     console.log("[RAZORPAY CALLBACK] Parsed credentials:", {
@@ -36,7 +44,7 @@ export async function POST(request: Request) {
     });
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature || !jobId) {
-      throw new Error("Missing transaction token or signatures from Razorpay callback");
+      throw new Error("Transaction token missing or payment cancelled");
     }
 
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
