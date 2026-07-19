@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
+import Link from "next/link";
 import { supabase } from "../lib/supabase";
 
 type Stage = "upload" | "settings" | "payment" | "printing" | "done";
@@ -345,7 +346,18 @@ export default function Home() {
         {stage === "done" && <div className="result-view"><div className="success">✓</div><h2>Your print is ready</h2><p>Please collect all pages from the output tray.</p><div className="receipt"><span>Job ID</span><b>{generatedJobId}</b><span>Amount paid</span><b>₹{price}</b><span>File deleted</span><b className="green">Yes ✓</b></div><button className="primary" onClick={reset}>Print another document</button></div>}
         <Steps stage={stage} />
       </div>
-      <div className="trust-row"><span>🔒 Secure payment</span><span>🗑 Files auto-deleted</span><span>☎ Need help? 830 903 1203</span></div>
-    </section>
-  </main>;
-}
+       <div className="trust-row"><span>🔒 Secure payment</span><span>🗑 Files auto-deleted</span><span>☎ Need help? 830 903 1203</span></div>
+      <footer style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center", gap: "16px", fontSize: "11px", color: "#64748b", flexWrap: "wrap" }}>
+        <Link href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Privacy Policy</Link>
+        <span>·</span>
+        <Link href="/terms" style={{ color: "inherit", textDecoration: "none" }}>Terms & Conditions</Link>
+        <span>·</span>
+        <Link href="/refund" style={{ color: "inherit", textDecoration: "none" }}>Refund Policy</Link>
+        <span>·</span>
+        <Link href="/shipping" style={{ color: "inherit", textDecoration: "none" }}>Shipping & Delivery</Link>
+        <span>·</span>
+        <Link href="/contact" style={{ color: "inherit", textDecoration: "none" }}>Contact Us</Link>
+      </footer>
+     </section>
+   </main>;
+ }
