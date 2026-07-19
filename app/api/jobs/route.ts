@@ -123,6 +123,9 @@ export async function PUT(request: Request) {
       const printerIp = kioskRecord?.ip || "192.168.1.101";
       console.log(`[PRINTER CONNECT] Opening TCP connection to printer at ${printerIp}:9100...`);
       
+      let printSuccess = false;
+      let printError = "No print data streamed";
+
       try {
         // 1. Download staged PDF from Supabase Storage
         const { data: fileData, error: downloadError } = await supabase.storage
@@ -131,45 +134,61 @@ export async function PUT(request: Request) {
 
         if (downloadError || !fileData) {
           console.error(`[STORAGE ERROR] Failed to download file: ${jobRecord.file}`, downloadError);
+          printError = `Failed to download file from storage: ${downloadError?.message || "unknown"}`;
         } else {
           // Convert Blob file to ArrayBuffer -> Node Buffer
           const arrayBuffer = await fileData.arrayBuffer();
           const fileBuffer = Buffer.from(arrayBuffer);
 
-          // 2. Connect to printer JetDirect raw socket
-          const client = new net.Socket();
-          client.setTimeout(8000); // 8-second timeout for rapid feedback
+          // 2. Connect to printer JetDirect raw socket and wait for completion
+          const printResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+            const client = new net.Socket();
+            client.setTimeout(8000); // 8-second timeout for rapid feedback
 
-          client.connect(9100, printerIp, () => {
-            console.log(`[PRINTER RELEASE] Staging print job headers for ${jobRecord.id}`);
-            const paperTray = kioskRecord?.paper_tray || "AUTO";
-            
-            // Format PJL headers for Konica Minolta
-            const pjlHeaders = 
-              `\x1b%-12345X@PJL SET COPIES = ${jobRecord.copies}\n` +
-              `@PJL SET COLORMODE = ${jobRecord.color === "bw" ? "MONOCHROME" : "COLOR"}\n` +
-              `@PJL SET INTRAY = ${paperTray}\n` +
-              `@PJL SET MEDIASOURCE = ${paperTray}\n` +
-              `@PJL ENTER LANGUAGE = PDF\n`;
+            client.connect(9100, printerIp, () => {
+              console.log(`[PRINTER RELEASE] Staging print job headers for ${jobRecord.id}`);
+              const paperTray = kioskRecord?.paper_tray || "AUTO";
+              
+              // Format PJL headers for Konica Minolta
+              const pjlHeaders = 
+                `\x1b%-12345X@PJL SET COPIES = ${jobRecord.copies}\n` +
+                `@PJL SET COLORMODE = ${jobRecord.color === "bw" ? "MONOCHROME" : "COLOR"}\n` +
+                `@PJL SET INTRAY = ${paperTray}\n` +
+                `@PJL SET MEDIASOURCE = ${paperTray}\n` +
+                `@PJL ENTER LANGUAGE = PDF\n`;
 
-            client.write(pjlHeaders);
-            client.write(fileBuffer);
-            client.write("\x1b%-12345X"); // End-of-job sequence
-            client.end();
-            console.log(`[PRINTER SUCCESS] Job ${jobRecord.id} successfully streamed.`);
+              client.write(pjlHeaders);
+              client.write(fileBuffer);
+              client.write("\x1b%-12345X"); // End-of-job sequence
+              client.end();
+              console.log(`[PRINTER SUCCESS] Job ${jobRecord.id} successfully streamed.`);
+              resolve({ success: true });
+            });
+
+            client.on("error", (err) => {
+              console.error(`[PRINTER ERROR] Failed to connect to ${printerIp}:9100 - ${err.message}`);
+              resolve({ success: false, error: `Printer connection failed: ${err.message}` });
+            });
+
+            client.on("timeout", () => {
+              console.warn(`[PRINTER TIMEOUT] Connection to ${printerIp}:9100 timed out`);
+              client.destroy();
+              resolve({ success: false, error: "Printer connection timed out (port 9100)" });
+            });
           });
 
-          client.on("error", (err) => {
-            console.error(`[PRINTER ERROR] Failed to connect to ${printerIp}:9100 - ${err.message}`);
-          });
-
-          client.on("timeout", () => {
-            console.warn(`[PRINTER TIMEOUT] Connection to ${printerIp}:9100 timed out`);
-            client.destroy();
-          });
+          printSuccess = printResult.success;
+          if (printResult.error) {
+            printError = printResult.error;
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("[PRINT PIPELINE ERROR]:", err);
+        printError = err.message || JSON.stringify(err);
+      }
+
+      if (!printSuccess) {
+        return Response.json({ error: printError }, { status: 500 });
       }
 
       // Simulate paper/toner decrement based on print counts
