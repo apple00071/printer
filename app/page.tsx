@@ -151,10 +151,19 @@ export default function Home() {
 
   async function selectFile(next?: File) {
     if (!next) return;
-    if (next.type !== "application/pdf" && !next.name.toLowerCase().endsWith(".pdf")) return alert("Please choose a PDF file.");
+    const isPdf = next.type === "application/pdf" || next.name.toLowerCase().endsWith(".pdf");
+    const isImage = next.type.startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(next.name);
+
+    if (!isPdf && !isImage) {
+      return alert("Please choose a PDF or image file (JPG, PNG).");
+    }
     if (next.size > 20 * 1024 * 1024) return alert("The maximum file size is 20 MB.");
     
-    const pageCount = await getPdfPageCount(next);
+    let pageCount = 1;
+    if (isPdf) {
+      pageCount = await getPdfPageCount(next);
+    }
+    
     setPdfPages(pageCount);
     setCustomRange(`1-${pageCount}`);
     setFile(next);
@@ -292,8 +301,8 @@ export default function Home() {
         {stage === "upload" && <>
           <div className="card-heading"><div><h2>Upload your document</h2><p>We automatically delete your file after printing.</p></div></div>
           <div className={`dropzone ${dragging ? "dragging" : ""}`} onClick={() => inputRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files[0]); }}>
-            <input ref={inputRef} type="file" accept="application/pdf" hidden onChange={e => selectFile(e.target.files?.[0])} />
-            <div className="pdf-icon"><span>PDF</span></div><h3>Drag & drop your PDF here</h3><p>or</p><button className="primary">Choose a file</button><small>PDF only · Up to 20 MB</small>
+            <input ref={inputRef} type="file" accept="application/pdf, image/*" hidden onChange={e => selectFile(e.target.files?.[0])} />
+            <div className="pdf-icon" style={{ background: "linear-gradient(135deg, #3b82f6, #1d4ed8)" }}><span>FILE</span></div><h3>Drag & drop PDF or Image here</h3><p>or</p><button className="primary">Choose a file</button><small>PDF, JPG, PNG, WEBP · Up to 20 MB</small>
           </div>
           
           <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", color: "var(--navy)" }}>
@@ -304,7 +313,7 @@ export default function Home() {
             />
             <div style={{ textAlign: "left" }}>
               <h4 style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: 800 }}>Print from your phone</h4>
-              <p style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}>Scan this QR code to upload your PDF directly from your mobile storage.</p>
+              <p style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}>Scan this QR code to upload your document directly from your mobile storage.</p>
             </div>
           </div>
         </>}
