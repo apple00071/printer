@@ -94,10 +94,12 @@ async function pollJobs() {
         console.log(`Connecting to physical printer at ${printerIp}:9100...`);
 
         // Connect and stream print job raw socket
+        let isConnected = false;
         const client = new net.Socket();
         client.setTimeout(10000); // 10s timeout
 
         client.connect(9100, printerIp, () => {
+          isConnected = true;
           console.log(`Connected! Streaming print job raw PJL headers...`);
           const pjlHeaders = 
             `\x1b%-12345X@PJL SET COPIES = ${job.copies || 1}\n` +
@@ -113,6 +115,7 @@ async function pollJobs() {
         });
 
         client.on("close", async () => {
+          if (!isConnected) return; // Ignore close events from failed connection attempts
           console.log(`[SUCCESS] Print job ${job.id} streamed successfully.`);
           
           // Update status to Printed and decrement printer resources
