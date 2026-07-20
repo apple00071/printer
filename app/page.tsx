@@ -11,8 +11,23 @@ function Brand() {
   return <div className="brand"><span className="brand-icon">▤</span><span>ScanPrint</span></div>;
 }
 
-function StatusPills() {
-  return <div className="status-pills"><span><i className="online-dot" />Online</span><span className="divider" /><span>▤ &nbsp;A4 ready</span></div>;
+function StatusPills({ kioskId, status, paper }: { kioskId: string; status: string; paper: number }) {
+  if (!kioskId) {
+    return <div className="status-pills"><span><i className="online-dot" style={{ background: "#94a3b8", boxShadow: "0 0 0 5px #94a3b814" }} />No Kiosk</span><span className="divider" /><span>▤ &nbsp;Scan QR to connect</span></div>;
+  }
+
+  const isOnline = status?.toLowerCase() === "online";
+  const dotColor = isOnline ? "var(--green)" : "var(--red)";
+  const dotShadow = isOnline ? "#10a63814" : "#e83d4d14";
+  
+  let paperText = "A4 ready";
+  if (paper === 0) {
+    paperText = "Out of paper";
+  } else if (paper < 10) {
+    paperText = "Low paper";
+  }
+
+  return <div className="status-pills"><span><i className="online-dot" style={{ background: dotColor, boxShadow: `0 0 0 5px ${dotShadow}` }} />{status}</span><span className="divider" /><span>▤ &nbsp;{paperText}</span></div>;
 }
 
 function Steps({ stage }: { stage: Stage }) {
@@ -86,11 +101,14 @@ export default function Home() {
   const [kioskId, setKioskId] = useState("");
   const [kioskName, setKioskName] = useState("HP LaserJet Pro");
   const [kioskLocation, setKioskLocation] = useState("Kavali");
+  const [kioskStatus, setKioskStatus] = useState("Online");
+  const [kioskPaper, setKioskPaper] = useState(100);
   const [uploadUrl, setUploadUrl] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [bypassKiosk, setBypassKiosk] = useState(false);
   const [isKioskDevice, setIsKioskDevice] = useState(false);
   const [started, setStarted] = useState(false);
+  const [activeModal, setActiveModal] = useState<"scanner" | "kioskId" | "help" | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -124,6 +142,17 @@ export default function Home() {
       streamRef.current = null;
     }
   }
+
+  useEffect(() => {
+    if (activeModal === "scanner") {
+      startScanner();
+    } else {
+      stopScanner();
+    }
+    return () => {
+      stopScanner();
+    };
+  }, [activeModal]);
 
   function tick() {
     if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
@@ -164,6 +193,7 @@ export default function Home() {
 
         if (detectedKioskId) {
           stopScanner();
+          setActiveModal(null);
           const finalId = detectedKioskId.toUpperCase();
           setKioskId(finalId);
           setUploadUrl(window.location.origin + "/?kioskId=" + finalId + "&view=mobile");
@@ -171,6 +201,8 @@ export default function Home() {
             if (data) {
               setKioskName(data.name);
               setKioskLocation(data.location);
+              setKioskStatus(data.status);
+              setKioskPaper(data.paper);
             }
           });
           return;
@@ -212,6 +244,8 @@ export default function Home() {
             if (activeKiosk) {
               setKioskName(activeKiosk.name);
               setKioskLocation(activeKiosk.location);
+              setKioskStatus(activeKiosk.status);
+              setKioskPaper(activeKiosk.paper);
             }
           }
         }
@@ -332,49 +366,239 @@ export default function Home() {
   }
 
   return <main>
+    <div className="glow-orb glow-1"></div>
+    <div className="glow-orb glow-2"></div>
     <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
     <Script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" strategy="lazyOnload" />
-    <header><Brand /><StatusPills /></header>
+    <header>
+      <Brand />
+      {kioskId ? (
+        <div className="header-actions">
+          <StatusPills kioskId={kioskId} status={kioskStatus} paper={kioskPaper} />
+          <button className="header-btn" onClick={() => setActiveModal("help")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Help</span>
+          </button>
+        </div>
+      ) : (
+        <div className="header-actions">
+          <button className="header-btn primary-header-btn" onClick={() => setActiveModal("scanner")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span>Scan QR</span>
+          </button>
+          <button className="header-btn" onClick={() => setActiveModal("kioskId")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+              <line x1="7" y1="16" x2="17" y2="16"/>
+            </svg>
+            <span>Enter Code</span>
+          </button>
+          <button className="header-btn" onClick={() => setActiveModal("help")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Help</span>
+          </button>
+        </div>
+      )}
+    </header>
 
     <section className="customer-shell">
       {!kioskId && !started ? (
-        <div className="marketing-landing" style={{ padding: "40px 0", textAlign: "center", maxWidth: "800px", margin: "0 auto" }}>
-          <div style={{ display: "inline-block", background: "rgba(18, 97, 234, 0.08)", color: "var(--blue)", padding: "8px 18px", borderRadius: "30px", fontSize: "13px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "20px" }}>
+        <div className="marketing-landing">
+          <div className="hero-badge">
             🖨️ Self-Service Print Kiosks
           </div>
-          <h1 style={{ fontSize: "clamp(34px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.15, color: "var(--navy)", letterSpacing: "-2px", margin: "0 0 20px" }}>
+          <h1 className="hero-title">
             Print Documents Instantly From Your Phone
           </h1>
-          <p style={{ fontSize: "18px", color: "var(--text)", lineHeight: 1.5, maxWidth: "600px", margin: "0 auto 36px" }}>
-            No apps. No registrations. Simply connect to any local ScanPrint kiosk, upload your files, and collect your prints.
+          <p className="hero-subtitle">
+            No apps. No registrations. Simply scan the QR code on the kiosk, upload your files, and collect your printout instantly.
           </p>
 
-          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap", marginBottom: "48px" }}>
-            <button className="primary" onClick={() => { setStarted(true); startScanner(); }} style={{ padding: "14px 32px", fontSize: "16px", fontWeight: 750 }}>
-              📷 Scan QR to Start
+          <div className="cta-buttons">
+            <button className="primary-btn" onClick={() => setActiveModal("kioskId")}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+                <line x1="6" y1="8" x2="6.01" y2="8"/>
+                <line x1="10" y1="8" x2="10.01" y2="8"/>
+                <line x1="14" y1="8" x2="14.01" y2="8"/>
+                <line x1="18" y1="8" x2="18.01" y2="8"/>
+                <line x1="6" y1="12" x2="6.01" y2="12"/>
+                <line x1="10" y1="12" x2="10.01" y2="12"/>
+                <line x1="14" y1="12" x2="14.01" y2="12"/>
+                <line x1="18" y1="12" x2="18.01" y2="12"/>
+                <line x1="7" y1="16" x2="17" y2="16"/>
+              </svg>
+              Enter Kiosk ID
             </button>
-            <button className="secondary" onClick={() => setStarted(true)} style={{ padding: "14px 32px", fontSize: "16px", fontWeight: 750 }}>
-              ⌨️ Enter Kiosk ID
+            <button className="secondary-btn" onClick={() => setActiveModal("help")}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              Need Help?
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", margin: "40px 0", textAlign: "left" }}>
-            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
-              <div style={{ fontSize: "28px", marginBottom: "12px" }}>⚡</div>
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>Lightning Fast</h3>
-              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Your document prints in less than 30 seconds from uploading.</p>
+          <div className="feature-grid">
+            <div className="feature-card">
+              <div className="feature-icon-wrapper yellow">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
+              <h3>Lightning Fast</h3>
+              <p>Your document prints in less than 30 seconds from uploading.</p>
             </div>
             
-            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
-              <div style={{ fontSize: "28px", marginBottom: "12px" }}>🔒</div>
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>100% Secure</h3>
-              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Files are processed over encrypted channels and auto-deleted immediately after printing.</p>
+            <div className="feature-card">
+              <div className="feature-icon-wrapper green">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <h3>100% Secure</h3>
+              <p>Files are processed over encrypted channels and auto-deleted immediately after printing.</p>
             </div>
 
-            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: "18px", padding: "24px", boxShadow: "0 10px 30px rgba(22,55,102,0.04)" }}>
-              <div style={{ fontSize: "28px", marginBottom: "12px" }}>📱</div>
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: "0 0 6px" }}>No Apps Needed</h3>
-              <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, lineHeight: 1.5 }}>Works directly in your mobile browser. Just scan and print.</p>
+            <div className="feature-card">
+              <div className="feature-icon-wrapper blue">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                  <line x1="12" y1="18" x2="12.01" y2="18"/>
+                </svg>
+              </div>
+              <h3>No Apps Needed</h3>
+              <p>Works directly in your mobile browser. Just scan the kiosk QR code and print.</p>
+            </div>
+          </div>
+
+          <div className="how-it-works">
+            <h2 className="section-title">How It Works</h2>
+            <p className="section-subtitle">Get your printouts in 4 simple steps without any complex setup.</p>
+            <div className="steps-grid">
+              <div className="step-card">
+                <span className="step-number">01</span>
+                <div className="step-card-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 2v6h-6"/>
+                    <path d="M21 13a9 9 0 1 1-9-9"/>
+                  </svg>
+                </div>
+                <h4>Scan Kiosk QR</h4>
+                <p>Point your mobile camera at the QR code sticker on the physical ScanPrint kiosk.</p>
+              </div>
+
+              <div className="step-card">
+                <span className="step-number">02</span>
+                <div className="step-card-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                </div>
+                <h4>Upload Files</h4>
+                <p>Choose PDFs, documents, or photos directly from your phone's storage.</p>
+              </div>
+
+              <div className="step-card">
+                <span className="step-number">03</span>
+                <div className="step-card-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9"/>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>
+                </div>
+                <h4>Configure</h4>
+                <p>Choose B&W or Color, single or double-sided, and select the number of copies.</p>
+              </div>
+
+              <div className="step-card">
+                <span className="step-number">04</span>
+                <div className="step-card-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                </div>
+                <h4>Pay & Collect</h4>
+                <p>Pay securely via UPI (Razorpay) and collect your printed pages instantly from the printer tray.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pricing-section">
+            <div className="pricing-info-card">
+              <div>
+                <h3>Affordable Pricing</h3>
+                <p>Select your printing options. We offer clean, high-grade printing rates.</p>
+              </div>
+              <div className="price-rows">
+                <div className="price-row">
+                  <div className="price-name">
+                    <span>Black & White</span>
+                    <small>Standard clean laser print</small>
+                  </div>
+                  <div className="price-value">₹2 <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", fontWeight: 400 }}>/ page</span></div>
+                </div>
+                <div className="price-row">
+                  <div className="price-name">
+                    <span>Color Print</span>
+                    <small>Vibrant high-resolution print</small>
+                  </div>
+                  <div className="price-value">₹10 <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", fontWeight: 400 }}>/ page</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="formats-card">
+              <div>
+                <h3>Supported Formats</h3>
+                <p>Upload files directly without converting. We support standard documents and image files.</p>
+              </div>
+              <div>
+                <div className="format-tags">
+                  <span className="format-tag">PDF</span>
+                  <span className="format-tag">PNG</span>
+                  <span className="format-tag">JPEG</span>
+                  <span className="format-tag">JPG</span>
+                  <span className="format-tag">WEBP</span>
+                </div>
+                <div className="format-limit">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "6px" }}>
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                  Maximum file size: 20 MB per print job
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="security-banner">
+            <div className="security-banner-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <div className="security-banner-content">
+              <h4>Privacy & Security First Policy</h4>
+              <p>To guarantee complete privacy, all files are transmitted over secure TLS encrypted channels and automatically deleted from our servers immediately after printing.</p>
             </div>
           </div>
         </div>
@@ -421,6 +645,8 @@ export default function Home() {
                     if (data) {
                       setKioskName(data.name);
                       setKioskLocation(data.location);
+                      setKioskStatus(data.status);
+                      setKioskPaper(data.paper);
                     }
                   });
                 }
@@ -531,5 +757,131 @@ export default function Home() {
         <Link href="/contact" style={{ color: "inherit", textDecoration: "none" }}>Contact Us</Link>
       </footer>
      </section>
+
+     {activeModal === "scanner" && (
+       <div className="modal-overlay" onClick={() => setActiveModal(null)}>
+         <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-header">
+             <h3>Scan Kiosk QR Code</h3>
+             <button className="modal-close-btn" onClick={() => setActiveModal(null)}>×</button>
+           </div>
+           <div className="modal-body" style={{ textAlign: "center" }}>
+             <p style={{ fontSize: "14px", color: "var(--text)", marginBottom: "20px" }}>
+               Point your camera at the QR code sticker on the physical printer kiosk to connect instantly.
+             </p>
+             <div className="scanner-frame">
+               <video ref={videoRef} className="scanner-video" />
+               <div className="scanner-laser" />
+             </div>
+             <button className="primary" onClick={() => setActiveModal(null)} style={{ background: "#ef4444", marginTop: "24px" }}>
+               Cancel
+             </button>
+           </div>
+         </div>
+       </div>
+     )}
+
+     {activeModal === "kioskId" && (
+       <div className="modal-overlay" onClick={() => setActiveModal(null)}>
+         <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-header">
+             <h3>Enter Kiosk ID</h3>
+             <button className="modal-close-btn" onClick={() => setActiveModal(null)}>×</button>
+           </div>
+           <div className="modal-body">
+             <form onSubmit={(e) => {
+               e.preventDefault();
+               const form = e.currentTarget;
+               const input = form.elements.namedItem("kioskInput") as HTMLInputElement;
+               const value = input.value.trim().toUpperCase();
+               if (value) {
+                 supabase.from("kiosks").select("*").eq("id", value).single().then(({ data }) => {
+                   if (data) {
+                     setKioskId(value);
+                     setUploadUrl(window.location.origin + "/?kioskId=" + value + "&view=mobile");
+                     setKioskName(data.name);
+                     setKioskLocation(data.location);
+                     setKioskStatus(data.status);
+                     setKioskPaper(data.paper);
+                     setActiveModal(null);
+                   } else {
+                     alert("Invalid Kiosk ID. Please check the ID printed on the printer and try again.");
+                   }
+                 });
+               }
+             }} className="modal-form">
+               <div>
+                 <label htmlFor="kioskInput">Kiosk ID (printed on the sticker):</label>
+                 <input 
+                   id="kioskInput"
+                   name="kioskInput"
+                   type="text" 
+                   placeholder="e.g. KSK-001" 
+                   required
+                   style={{ textTransform: "uppercase" }}
+                   autoFocus
+                 />
+               </div>
+               <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+                 <button type="button" className="secondary wide" onClick={() => setActiveModal(null)}>Cancel</button>
+                 <button type="submit" className="primary wide">Connect</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       </div>
+     )}
+
+     {activeModal === "help" && (
+       <div className="modal-overlay" onClick={() => setActiveModal(null)}>
+         <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-header">
+             <h3>How to Print</h3>
+             <button className="modal-close-btn" onClick={() => setActiveModal(null)}>×</button>
+           </div>
+           <div className="modal-body">
+             <div className="help-modal-content">
+               <div className="help-step-item">
+                 <span className="help-step-num">1</span>
+                 <div className="help-step-text">
+                   <h5>Scan or Connect</h5>
+                   <p>Scan the QR code sticker on the physical print kiosk or click "Enter Kiosk ID" to connect manually.</p>
+                 </div>
+               </div>
+
+               <div className="help-step-item">
+                 <span className="help-step-num">2</span>
+                 <div className="help-step-text">
+                   <h5>Upload Document</h5>
+                   <p>Upload a PDF, JPG, PNG, or WEBP file from your mobile or computer local storage (up to 20MB).</p>
+                 </div>
+               </div>
+
+               <div className="help-step-item">
+                 <span className="help-step-num">3</span>
+                 <div className="help-step-text">
+                   <h5>Choose Settings</h5>
+                   <p>Select black & white or color printing, copies count, and single or double-sided layouts.</p>
+                 </div>
+               </div>
+
+               <div className="help-step-item">
+                 <span className="help-step-num">4</span>
+                 <div className="help-step-text">
+                   <h5>Secure Print</h5>
+                   <p>Tap "Print Document", pay securely via UPI, and collect your pages instantly from the printer tray.</p>
+                 </div>
+               </div>
+
+               <div className="help-support-box">
+                 <h5>Need Immediate Help?</h5>
+                 <p>Call or WhatsApp our support executive:</p>
+                 <strong>📞 +91 830 903 1203</strong>
+               </div>
+             </div>
+           </div>
+         </div>
+       </div>
+     )}
    </main>;
  }
