@@ -425,32 +425,6 @@ export default function Home() {
             No apps. No registrations. Simply scan the QR code on the kiosk, upload your files, and collect your printout instantly.
           </p>
 
-          <div className="cta-buttons">
-            <button className="primary-btn" onClick={() => setActiveModal("kioskId")}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
-                <line x1="6" y1="8" x2="6.01" y2="8"/>
-                <line x1="10" y1="8" x2="10.01" y2="8"/>
-                <line x1="14" y1="8" x2="14.01" y2="8"/>
-                <line x1="18" y1="8" x2="18.01" y2="8"/>
-                <line x1="6" y1="12" x2="6.01" y2="12"/>
-                <line x1="10" y1="12" x2="10.01" y2="12"/>
-                <line x1="14" y1="12" x2="14.01" y2="12"/>
-                <line x1="18" y1="12" x2="18.01" y2="12"/>
-                <line x1="7" y1="16" x2="17" y2="16"/>
-              </svg>
-              Enter Kiosk ID
-            </button>
-            <button className="secondary-btn" onClick={() => setActiveModal("help")}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              Need Help?
-            </button>
-          </div>
-
           <div className="feature-grid">
             <div className="feature-card">
               <div className="feature-icon-wrapper yellow">
